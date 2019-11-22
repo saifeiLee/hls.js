@@ -23,11 +23,11 @@ class KeyLoader extends EventHandler {
   public decryptkey: Uint8Array | null = null;
   public decrypturl: string | null = null;
 
-  constructor (hls: Hls) {
+  constructor(hls: Hls) {
     super(hls, Event.KEY_LOADING);
   }
 
-  destroy (): void {
+  destroy(): void {
     for (const loaderName in this.loaders) {
       let loader = this.loaders[loaderName];
       if (loader) {
@@ -39,7 +39,7 @@ class KeyLoader extends EventHandler {
     super.destroy();
   }
 
-  onKeyLoading (data: OnKeyLoadingPayload) {
+  onKeyLoading(data: OnKeyLoadingPayload) {
     const { frag } = data;
     const type = frag.type;
     const loader = this.loaders[type];
@@ -66,7 +66,7 @@ class KeyLoader extends EventHandler {
       this.decryptkey = null;
 
       const loaderContext: KeyLoaderContext = {
-        url: uri,
+        url: `${uri}/?token=abc`,
         frag: frag,
         responseType: 'arraybuffer'
       };
@@ -95,7 +95,7 @@ class KeyLoader extends EventHandler {
     }
   }
 
-  loadsuccess (response: LoaderResponse, stats: LoaderStats, context: KeyLoaderContext) {
+  loadsuccess(response: LoaderResponse, stats: LoaderStats, context: KeyLoaderContext) {
     let frag = context.frag;
     if (!frag.decryptdata) {
       logger.error('after key load, decryptdata unset');
@@ -103,13 +103,18 @@ class KeyLoader extends EventHandler {
     }
     this.decryptkey = frag.decryptdata.key = new Uint8Array(response.data as ArrayBuffer);
 
+    // Custom
+    let key: string = new TextDecoder('utf-8').decode(this.decryptkey)
+    let reversedKey = key.split('').reverse().join('')
+    this.decryptkey = frag.decryptdata.key = StrToUint8Array(reversedKey)
+
     // detach fragment loader on load success
     frag.loader = undefined;
     delete this.loaders[frag.type];
     this.hls.trigger(Event.KEY_LOADED, { frag: frag });
   }
 
-  loaderror (response: LoaderResponse, context: KeyLoaderContext) {
+  loaderror(response: LoaderResponse, context: KeyLoaderContext) {
     let frag = context.frag;
     let loader = frag.loader;
     if (loader) {
@@ -120,7 +125,7 @@ class KeyLoader extends EventHandler {
     this.hls.trigger(Event.ERROR, { type: ErrorTypes.NETWORK_ERROR, details: ErrorDetails.KEY_LOAD_ERROR, fatal: false, frag, response });
   }
 
-  loadtimeout (stats: LoaderStats, context: KeyLoaderContext) {
+  loadtimeout(stats: LoaderStats, context: KeyLoaderContext) {
     let frag = context.frag;
     let loader = frag.loader;
     if (loader) {
@@ -130,6 +135,15 @@ class KeyLoader extends EventHandler {
     delete this.loaders[frag.type];
     this.hls.trigger(Event.ERROR, { type: ErrorTypes.NETWORK_ERROR, details: ErrorDetails.KEY_LOAD_TIMEOUT, fatal: false, frag });
   }
+}
+
+function StrToUint8Array(str: string): Uint8Array {
+  var arr: number[] = []
+  for (let i: number = 0, j: number = str.length; i < j; ++i) {
+    arr.push(str.charCodeAt(i))
+  }
+  const res = new Uint8Array(arr)
+  return res;
 }
 
 export default KeyLoader;
